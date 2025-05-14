@@ -45,7 +45,14 @@ public class GUI {
             buttons[i] = new JButton(""); // สร้างปุ่มเปล่าแต่ละช่อง
             buttons[i].setFont(font); // ตั้งฟอนต์
             buttons[i].setFocusPainted(false); // ไม่แสดงขอบเมื่อถูกเลือก
-            buttons[i].addActionListener(e -> sendMove(idx + 1)); // เมื่อกดปุ่ม จะส่งตำแหน่งไปให้ server
+            // buttons[i].addActionListener(e -> sendMove(idx + 1)); 
+            buttons[i].addActionListener(e -> {
+                if (!buttons[idx].getText().isEmpty()) {
+                    JOptionPane.showMessageDialog(frame, "Invalid move. Please choose another cell.", "Invalid Move", JOptionPane.WARNING_MESSAGE);
+                } else {
+                    sendMove(idx + 1); // เมื่อกดปุ่ม จะส่งตำแหน่งไปให้ server
+                }
+            });
             boardPanel.add(buttons[i]); // ใส่ปุ่มลงใน panel
         }
 
@@ -78,7 +85,7 @@ public class GUI {
                         playerSymbol = response.charAt(response.length() - 1); // บันทึกว่าเราเป็น X หรือ O
                         frame.setTitle("Tic Tac Toe - You are " + playerSymbol); // แสดง title ของหน้าต่าง
                     } else if (response.contains("Your turn")) {
-                        frame.setTitle("Tic Tac Toe - Your Turn (" + playerSymbol + ")");
+                        frame.setTitle("Tic Tac Toe");
                         statusLabel.setText("Your Turn (" + playerSymbol + ")");
                     } else if (response.startsWith("Opponent moved")) {
                         statusLabel.setText("Waiting for " + (playerSymbol == 'X' ? 'O' : 'X') + "...");

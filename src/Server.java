@@ -1,38 +1,39 @@
 package src;
 
-import java.io.*; // สำหรับจัดการ input/output stream
-import java.net.*; // สำหรับใช้งาน socket และ server socket
+import java.io.*;
+import java.net.*;
 
 public class Server {
-    private static final int PORT = 5165; // พอร์ตที่ server จะเปิดรอการเชื่อมต่อ
-    private static char[] board = new char[9];  // กระดาน XO มี 9 ช่อง
-    private static int currentPlayer = 1;  // เริ่มต้นที่ผู้เล่น 1 (X)
-    private static ServerSocket serverSocket; // ตัวรับการเชื่อมต่อจาก client
+    private static final int PORT = 5165;
+    private static char[] board = new char[9];  // Tic-Tac-Toe board (9 cells)
+    private static int currentPlayer = 1;  // Player 1 starts (X)
+    private static ServerSocket serverSocket;
 
     public static void main(String[] args) {
         try {
-            serverSocket = new ServerSocket(PORT); // สร้าง server socket ที่พอร์ต 5165
+            serverSocket = new ServerSocket(PORT);
             System.out.println("Server is listening on port " + PORT + "...");
 
+            // Player handler references
             ClientHandler player1 = null;
             ClientHandler player2 = null;
 
-            // รอการเชื่อมต่อจากผู้เล่น 1
+            // Accept player 1
             Socket clientSocket1 = serverSocket.accept();
-            player1 = new ClientHandler(clientSocket1, 'X'); // กำหนดให้เป็นผู้เล่น X
-            player1.setOtherPlayer(player2); // ตั้งค่าอีกฝั่งเป็น null ชั่วคราว
+            player1 = new ClientHandler(clientSocket1, 'X');
+            player1.setOtherPlayer(player2); // Will be set again later
             player1.start();
             System.out.println("Player 1 connected");
 
-            // รอการเชื่อมต่อจากผู้เล่น 2
+            // Accept player 2
             Socket clientSocket2 = serverSocket.accept();
-            player2 = new ClientHandler(clientSocket2, 'O'); // ผู้เล่น O
-            player2.setOtherPlayer(player1); // ผู้เล่น O รู้จักผู้เล่น X
-            player1.setOtherPlayer(player2); // ผู้เล่น X รู้จักผู้เล่น O
+            player2 = new ClientHandler(clientSocket2, 'O');
+            player2.setOtherPlayer(player1);
+            player1.setOtherPlayer(player2); // Now that player2 is known
             player2.start();
             System.out.println("Player 2 connected");
 
-            player1.join(); // รอให้ thread ของ player1 จบก่อน
+            player1.join();
             player2.join();
 
         } catch (IOException | InterruptedException e) {
@@ -45,7 +46,7 @@ public class Server {
         private char playerSymbol;
         private BufferedReader in;
         private PrintWriter out;
-        private ClientHandler otherPlayer; // ผู้เล่นฝั่งตรงข้าม
+        private ClientHandler otherPlayer;
 
         public ClientHandler(Socket socket, char symbol) {
             this.clientSocket = socket;
@@ -65,52 +66,53 @@ public class Server {
                 out.println("Welcome Player " + playerSymbol + ". You're playing as " + playerSymbol);
 
                 while (true) {
-                    synchronized (Server.class) { // ป้องกันไม่ให้ 2 thread เล่นพร้อมกัน
+                    synchronized (Server.class) {
                         while (currentPlayer != (playerSymbol == 'X' ? 1 : 2)) {
-                            Server.class.wait(); // รอให้ถึงตาตัวเอง
+                            Server.class.wait();
                         }
 
                         out.println("Your turn. Current board:");
-                        sendBoardToPlayer(out); // ส่งกระดานให้ผู้เล่นนี้ดู
+                        sendBoardToPlayer(out);  // send to self
                         out.println("Please enter a number (1-9): ");
 
-                        int move = Integer.parseInt(in.readLine()) - 1; // รับช่องที่ผู้เล่นต้องการเล่น
+                        int move = Integer.parseInt(in.readLine()) - 1;
 
                         if (move < 0 || move >= 9 || board[move] != '\0') {
-                            out.println("Invalid move. Try again."); // ช่องไม่ว่าง
+                            out.println("Invalid move. Try again.");
                             continue;
                         }
 
-                        board[move] = playerSymbol; // ลงหมากในกระดาน
+                        board[move] = playerSymbol;
 
                         if (checkWin(playerSymbol)) {
-                            out.println("WINNER_" + playerSymbol); // บอกผู้เล่นว่าเขาชนะ
-                            otherPlayer.out.println("You Lose! " + playerSymbol + " wins"); // บอกอีกฝั่งว่าแพ้
-                            sendBoardToPlayer(out); // ส่งกระดานล่าสุด
-                            sendBoardToPlayer(otherPlayer.out);
-                            break;
-                        }
-
-                        if (checkDraw()) {
-                            out.println("DRAW"); // บอกทั้งคู่ว่าเสมอ
-                            otherPlayer.out.println("DRAW");
+                            out.println("WINNER_" + playerSymbol);
+                            otherPlayer.out.println("You Lose! " + playerSymbol + " wins");
                             sendBoardToPlayer(out);
                             sendBoardToPlayer(otherPlayer.out);
                             break;
                         }
 
-                        otherPlayer.out.println("Opponent moved. Here's the board:");
-                        sendBoardToPlayer(otherPlayer.out); // อัปเดตกระดานให้ผู้เล่นอีกฝั่ง
+                        if (checkDraw()) {
+                            out.println("DRAW");
+                            otherPlayer.out.println("Game Over: It's a draw!");
+                            sendBoardToPlayer(out);
+                            sendBoardToPlayer(otherPlayer.out);
+                            break;
+                        }
 
-                        currentPlayer = (currentPlayer == 1) ? 2 : 1; // สลับผู้เล่น
-                        Server.class.notifyAll(); // แจ้งอีก thread ว่าเล่นต่อได้
+                        // Notify opponent
+                        otherPlayer.out.println("Opponent moved. Here's the board:");
+                        sendBoardToPlayer(otherPlayer.out);
+
+                        currentPlayer = (currentPlayer == 1) ? 2 : 1;
+                        Server.class.notifyAll();
                     }
                 }
             } catch (IOException | InterruptedException e) {
                 e.printStackTrace();
             } finally {
                 try {
-                    clientSocket.close(); // ปิดการเชื่อมต่อเมื่อจบเกม
+                    clientSocket.close();
                 } catch (IOException e) {
                     System.err.println("Error closing client socket: " + e.getMessage());
                 }
@@ -120,10 +122,10 @@ public class Server {
         private void sendBoardToPlayer(PrintWriter out) {
             StringBuilder sb = new StringBuilder();
             for (int i = 0; i < 9; i++) {
-                sb.append(board[i] == '\0' ? (i + 1) : board[i]); // แสดงตัวเลขถ้ายังว่าง ไม่งั้นแสดง X/O
+                sb.append(board[i] == '\0' ? (i + 1) : board[i]);
                 sb.append(" ");
             }
-            out.println(sb.toString().trim()); // ส่งข้อความที่เป็นสถานะกระดาน
+            out.println(sb.toString().trim());
         }
 
         private boolean checkWin(char playerSymbol) {
@@ -136,7 +138,7 @@ public class Server {
                 if (board[cond[0]] == playerSymbol &&
                     board[cond[1]] == playerSymbol &&
                     board[cond[2]] == playerSymbol) {
-                    return true; // ชนะตามเงื่อนไข
+                    return true;
                 }
             }
             return false;
@@ -144,7 +146,7 @@ public class Server {
 
         private boolean checkDraw() {
             for (char cell : board) {
-                if (cell == '\0') return false; // ถ้ายังมีช่องว่างอยู่ แสดงว่ายังไม่เสมอ
+                if (cell == '\0') return false;
             }
             return true;
         }
